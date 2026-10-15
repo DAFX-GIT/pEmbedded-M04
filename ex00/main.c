@@ -1,5 +1,4 @@
 #include <avr/io.h>
-#include <util/delay.h>
 
 #define	my_sei()  __asm__ __volatile__ ("sei" ::: "memory")
 #define __INTR_ATTRS __used__, __externally_visible__
@@ -17,11 +16,11 @@ my_ISR(INT0_vect) { //set a timer debounce
 
 my_ISR(TIMER1_COMPA_vect) { //once debounce finsihed check state and toggle light
 	TCCR1B &= ~((1 << CS12) | (1 << CS11) | (1 << CS10));       // stop Timer1
-	if (!(PIND & (1 << PD2)))           // really pressed? (active-low)
+	if (!(EICRA & (1 << ISC00)))        // we were waiting for a falling edge → it was a press
 		PORTB ^= (1 << PB0);            // toggle D1
+	EICRA ^= (1 << ISC00);              // falling <-> rising: now wait for the opposite edge
 	EIFR = (1 << INTF0);                // drop edges latched while masked
 	EIMSK |= (1 << INT0);               // listen to the button again
-
 }
 
 int main () {
@@ -35,7 +34,7 @@ int main () {
     EIMSK |=  (1 << INT0); 					// on press trigger INT0_vect
 
 	// Timer1: CTC mode, stopped (no clock source yet)
-	TCCR1A = 0;
+	TCCR1A = 0; //clears/reset any leftover
 	TCCR1B = (1 << WGM12);              // CTC, TOP = OCR1A
 	OCR1A  = 468;                       // 16MHz/1024 = 64µs/tick → 469 ticks ≈ 30ms
 	TIMSK1 = (1 << OCIE1A);             // interrupt on compare match A
